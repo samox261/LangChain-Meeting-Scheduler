@@ -1,0 +1,25 @@
+# Meeting Scheduler Agent Configuration
+
+# User Preferences
+user_name: "Fawaz" # Or your name
+preferred_meeting_durations: # in minutes
+  - 30
+  - 60
+scheduling_window_hours: # In 24-hour format, for days it considers scheduling
+  start: 9 # 9 AM
+  end: 17  # 5 PM
+working_days: [ "Monday", "Tuesday", "Wednesday", "Thursday", "Friday" ]
+timezone: "Europe/Paris" 
+# Important for correct scheduling! Specify your timezone.
+# You can find your timezone string here: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+# Notification Preferences
+send_confirmation_emails: true
+send_followup_emails: true
+# notification_email_address: "your_notification_alias@example.com" # Optional: if different from main account
+
+# Agent Behavior
+max_scheduling_attempts: 3 # How many times to try finding a slot before giving up or asking for help
+default_meeting_title_prefix: "Meeting: "
+
+agent_email_address: "fawazsam2001@gmail.com"

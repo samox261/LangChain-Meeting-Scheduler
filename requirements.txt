@@ -1,0 +1,25 @@
+# --- Core LangChain and LLM (Gemini) ---
+langchain
+langchain-google-genai
+python-dotenv
+
+# --- Configuration ---
+PyYAML
+
+# --- Google Services (Gmail API & potentially Google Calendar API later) ---
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+
+# --- Date, Time, and Email Parsing Utilities ---
+pytz                        # For timezone handling (already added)
+python-dateutil             # For robust date parsing from strings
+beautifulsoup4              # For parsing HTML content from emails
+recurrent                   # For parsing recurring date expressions (e.g., "every Tuesday")
+dateparser
+
+# --- Optional (but powerful) NLP library ---
+# spacy                     # For advanced NLP tasks like Named Entity Recognition.
+                            # If you uncomment this, you'll also need to download a model, e.g.:
+                            # python -m spacy download en_core_web_sm
+                            # For now, we can rely on the LLM for most NLP.

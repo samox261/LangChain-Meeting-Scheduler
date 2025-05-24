@@ -1,0 +1,28 @@
+# Python Virtual Environment
+venv/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+pip-wheel-metadata/
+
+# Sensitive Credentials and Tokens (VERY IMPORTANT!)
+credentials.json
+token.json
+*.env
+.env # Also catch if it's just .env
+
+# Application State / Data (Potentially sensitive, good to ignore)
+scheduling_states.json
+*.log
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / Editor specific files
+.idea/
+.vscode/
+*.swp
+*.swo
