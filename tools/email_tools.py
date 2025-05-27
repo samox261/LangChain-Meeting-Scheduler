@@ -22,7 +22,8 @@ from email.mime.text import MIMEText
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/calendar'
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/gmail.modify'
 ]
 CREDENTIALS_FILE = 'credentials.json'
 TOKEN_FILE = 'token.json'
@@ -193,6 +194,41 @@ def send_gmail_email(to_address: str, subject: str, message_text: str):
         return f"An error occurred while sending email: {error}"
     except Exception as e:
         return f"An unexpected error occurred: {e}"
+    
+def mark_email_as_read_func(message_id: str) -> str:
+    """
+    Marks a specific email as read by removing the 'UNREAD' label.
+    Args:
+        message_id: The ID of the email message to mark as read.
+    Returns:
+        A success or error message string.
+    """
+    service = get_gmail_service()
+    if not service:
+        return "Failed to authenticate or build Gmail service for marking as read."
+
+    try:
+        service.users().messages().modify(
+            userId='me',
+            id=message_id,
+            body={'removeLabelIds': ['UNREAD']}
+        ).execute()
+        return f"Successfully marked message ID {message_id} as read."
+    except HttpError as error:
+        return f"An error occurred while marking email {message_id} as read: {error}"
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
+
+class MarkAsReadInput(BaseModel):
+    """Input schema for the MarkEmailAsRead tool."""
+    message_id: str = Field(description="The unique ID of the email message to be marked as read.")
+
+mark_as_read_tool = StructuredTool.from_function(
+    func=mark_email_as_read_func,
+    name="MarkEmailAsRead",
+    description="Use this tool to mark an email as read in Gmail once it has been processed. Requires the 'message_id'.",
+    args_schema=MarkAsReadInput
+)
 
 class SendEmailInput(BaseModel):
     to_address: str = Field(description="The email address of the recipient.")
