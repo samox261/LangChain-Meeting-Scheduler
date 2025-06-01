@@ -9,7 +9,7 @@ scheduling_window_hours: # In 24-hour format, for days it considers scheduling
   start: 9 # 9 AM
   end: 17  # 5 PM
 working_days: [ "Monday", "Tuesday", "Wednesday", "Thursday", "Friday" ]
-timezone: "Europe/Paris" 
+timezone: "Asia/Beirut"
 # Important for correct scheduling! Specify your timezone.
 # You can find your timezone string here: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 
@@ -21,5 +21,6 @@ send_followup_emails: true
 # Agent Behavior
 max_scheduling_attempts: 3 # How many times to try finding a slot before giving up or asking for help
 default_meeting_title_prefix: "Meeting: "
+poll_interval_seconds: 150 # <<<--- ADD THIS LINE OR MODIFY IF IT EXISTS UNDER AGENT BEHAVIOR
 
-agent_email_address: "fawazsam2001@gmail.com"
+agent_email_address: "samirfawaz74@gmail.com"

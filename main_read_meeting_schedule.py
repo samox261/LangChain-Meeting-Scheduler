@@ -94,11 +94,11 @@ def main():
         
     current_time_user_tz = datetime.now(user_tz)
     
-    agent_email_address = config.get("agent_email_address", "your_agent_email@example.com")
-    if agent_email_address == "your_agent_email@example.com":
+    agent_email_address = config.get("agent_email_address", "samirfawaz74@gmail.com")
+    if agent_email_address == "samirfawaz74@gmail.com":
         print("CRITICAL: 'agent_email_address' not set in config.yaml. Please set it to your agent's primary Gmail address.")
-        # return # Or use a default like fawazsam2001@gmail.com for testing if you ensure it's correct
-        agent_email_address = "fawazsam2001@gmail.com" # Fallback for this example, user should configure
+        # return # Or use a default like samirfawaz74@gmail.com for testing if you ensure it's correct
+        agent_email_address = "samirfawaz74@gmail.com" # Fallback for this example, user should configure
         print(f"Warning: Using fallback agent_email_address: {agent_email_address}")
 
 

@@ -13,7 +13,7 @@ token.json
 .env # Also catch if it's just .env
 
 # Application State / Data (Potentially sensitive, good to ignore)
-scheduling_states.json
+scheduling_states_*.json
 *.log
 
 # OS-generated files
@@ -26,3 +26,14 @@ desktop.ini
 .vscode/
 *.swp
 *.swo
+
+#testing files
+main_read.py
+main_read_thread.py
+main_read_analyze.py
+main_read_meeting_schedule.py
+main_send.py
+main_test_thread_group.py
+
+#Logfiles
+.

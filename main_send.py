@@ -52,13 +52,13 @@ def main():
             print(f"An error occurred while trying to send the email with the tool: {e}")
 
 if __name__ == '__main__':
-    # Set Paris time environment variable for the email body
+    # Set Beirut time environment variable for the email body
     try:
-        paris_tz = pytz.timezone("Europe/Paris")
-        paris_time = datetime.now(paris_tz).strftime("%I:%M %p %Z")
-        os.environ['CURRENT_TIME_PARIS'] = paris_time
+        beirut_tz = pytz.timezone("Asia/Beirut")
+        beirut_time = datetime.now(beirut_tz).strftime("%I:%M %p %Z")
+        os.environ['CURRENT_TIME_BEIRUT'] = beirut_time
     except Exception as e:
-        print(f"Could not set Paris time: {e}") # In case pytz or datetime fails for some reason
-        os.environ['CURRENT_TIME_PARIS'] = "the current time"
+        print(f"Could not set Beirut time: {e}") # In case pytz or datetime fails for some reason
+        os.environ['CURRENT_TIME_BEIRUT'] = "the current time"
         
     main()

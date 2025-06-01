@@ -2,7 +2,7 @@
     "threadId_example_123": {
       "status": "awaiting_reply_from_external", 
       "original_request_time": "2025-05-24T14:30:00Z",
-      "participants": ["fawazsam2001@gmail.com", "sender@example.com"], 
+      "participants": ["samirfawaz74@gmail.com", "sender@example.com"], 
       "topic": "Project Alpha Discussion",
       "last_proposed_times_by_agent": ["2025-05-27T10:00:00Europe/Paris", "2025-05-28T14:00:00Europe/Paris"],
       "last_reply_from_external": "Tuesday at 10am doesn't work, how about Wednesday at 2pm?",
@@ -15,7 +15,7 @@
     },
     "threadId_example_456": {
       "status": "confirmed_needs_scheduling",
-      "participants": ["fawazsam2001@gmail.com", "another_person@example.com"],
+      "participants": ["samirfawaz74@gmail.com", "another_person@example.com"],
       "topic": "Quick Sync",
       "confirmed_time": "2025-05-29T11:00:00Europe/Paris",
       "duration_minutes": 30

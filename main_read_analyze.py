@@ -85,10 +85,10 @@ def main():
 
 if __name__ == '__main__':
     try:
-        paris_tz = pytz.timezone("Europe/Paris")
-        paris_time = datetime.now(paris_tz).strftime("%I:%M %p %Z")
-        os.environ['CURRENT_TIME_PARIS'] = paris_time
+        beirut_tz = pytz.timezone("Asia/Beirut")
+        beirut_time = datetime.now(beirut_tz).strftime("%I:%M %p %Z")
+        os.environ['CURRENT_TIME_BEIRUT'] = beirut_time
     except Exception as e_time:
-        print(f"Could not set Paris time: {e_time}")
-        os.environ['CURRENT_TIME_PARIS'] = "the current time"
+        print(f"Could not set Beirut time: {e_time}")
+        os.environ['CURRENT_TIME_BEIRUT'] = "the current time"
     main()

@@ -111,7 +111,7 @@ def main():
         user_tz = pytz.utc
     current_time_user_tz = datetime.now(user_tz)
 
-    agent_email_address = config.get("agent_email_address", None)
+    agent_email_address = "samirfawaz74@gmail.com"
     if not agent_email_address:
         print("CRITICAL: 'agent_email_address' not set in config.yaml.")
         agent_email_address = "fawazsam2001@gmail.com" 
