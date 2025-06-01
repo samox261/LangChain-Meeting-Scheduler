@@ -172,3 +172,114 @@ email_analyzer_tool = StructuredTool.from_function(
     description="Analyzes the subject, body, CC list, user's timezone, and conversation context of an email to identify scheduling intent and extract meeting details. Returns a JSON object.",
     args_schema=AnalyzeEmailInput, # Uses the updated AnalyzeEmailInput
 )
+
+class AssistantCommandParams(BaseModel):
+    """Parameters extracted for an assistant command."""
+    topic: Optional[str] = Field(None, description="The topic or summary of the meeting.")
+    attendees_text: Optional[str] = Field(None, description="A natural language string describing attendees (e.g., 'Bob and Alice', 'the marketing team'). Needs further parsing to get emails.")
+    time_description: Optional[str] = Field(None, description="A natural language string describing the date and time (e.g., 'tomorrow at 2pm', 'next Friday morning').")
+    meeting_identifier_text: Optional[str] = Field(None, description="Text describing the meeting to be modified or deleted (e.g., 'the project sync tomorrow', 'my meeting with Jane').")
+    new_time_description: Optional[str] = Field(None, description="For reschedules, the new time description.")
+
+class ParsedAssistantCommand(BaseModel):
+    """Structured output for a parsed assistant command."""
+    command: Optional[str] = Field(None, description="The identified command: SCHEDULE_MEETING, DELETE_MEETING, RESCHEDULE_MEETING, or UNKNOWN_COMMAND.")
+    parameters: Optional[AssistantCommandParams] = Field(None, description="Parameters associated with the command.")
+    original_text: str = Field(description="The original text that was parsed.")
+    error_message: Optional[str] = Field(None, description="Any error message if parsing failed.")
+
+
+def parse_assistant_command(
+    email_text_segment: str, # The part of the email containing the @mention and command
+    user_timezone_str: str,
+    current_datetime_for_llm: Optional[str] = None # Provide current time for context
+) -> Dict[str, Any]:
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.1, convert_system_message_to_human=True)
+
+    if not current_datetime_for_llm:
+        try:
+            user_tz = pytz.timezone(user_timezone_str)
+            current_datetime_for_llm = datetime.now(user_tz).strftime("%A, %B %d, %Y, %I:%M %p %Z (%z)")
+        except Exception as e_tz:
+            logging.warning(f"Failed to use timezone '{user_timezone_str}' in parse_assistant_command: {e_tz}. Using system local.")
+            current_datetime_for_llm = datetime.now().strftime("%A, %B %d, %Y, %I:%M %p (System Local Time)")
+
+    prompt_template = """
+You are an AI assistant helping to parse commands from an email. The user will @mention you and give you a command.
+Your task is to identify the command and extract relevant parameters.
+Today's date and current time for your reference is: {current_datetime_for_llm}.
+The user's timezone is: {user_timezone_str}.
+
+Supported commands are:
+1. SCHEDULE_MEETING: For creating a new meeting.
+   - Parameters to extract:
+     - "topic": The subject or purpose of the meeting.
+     - "attendees_text": A string describing the attendees (e.g., "John Doe and the team", "Alice from marketing").
+     - "time_description": A string describing when the meeting should happen (e.g., "tomorrow at 3pm", "next Monday morning").
+2. RESCHEDULE_MEETING: For changing the time of an existing meeting.
+   - Parameters to extract:
+     - "meeting_identifier_text": A string describing the meeting to be rescheduled (e.g., "the sync up with Mark", "our budget meeting tomorrow").
+     - "new_time_description": A string describing the new desired time (e.g., "to 5pm", "to next Friday instead").
+3. DELETE_MEETING: For cancelling an existing meeting.
+   - Parameters to extract:
+     - "meeting_identifier_text": A string describing the meeting to be cancelled.
+
+If the text does not clearly match one of these commands, or if essential information for a command seems missing, set command to "UNKNOWN_COMMAND".
+If a parameter is not explicitly mentioned for a command, you can omit it or set it to null.
+
+Analyze the following email text segment:
+--- EMAIL TEXT SEGMENT START ---
+{email_text_segment}
+--- EMAIL TEXT SEGMENT END ---
+
+Respond ONLY with a single, valid JSON object matching the following structure:
+{{
+  "command": "SCHEDULE_MEETING | RESCHEDULE_MEETING | DELETE_MEETING | UNKNOWN_COMMAND",
+  "parameters": {{
+    "topic": "string or null",
+    "attendees_text": "string or null",
+    "time_description": "string or null",
+    "meeting_identifier_text": "string or null",
+    "new_time_description": "string or null"
+  }},
+  "original_text": "{email_text_segment_escaped_for_json}",
+  "error_message": "string or null if no error"
+}}
+
+Focus on extracting the information as provided in the text. Do not try to resolve attendees_text into email addresses or time_description into ISO format; that will be handled by other functions.
+For RESCHEDULE_MEETING, if the new time is part of a phrase like "reschedule X to Y", "Y" is the new_time_description. If it's just "reschedule X" and a new time is implied later or missing, new_time_description might be null.
+For meeting_identifier_text, capture how the user refers to the meeting.
+"""
+    # Prepare the email_text_segment for JSON embedding by escaping backslashes and quotes
+    escaped_email_text = json.dumps(email_text_segment)[1:-1] # Use json.dumps to escape then strip outer quotes
+
+    prompt = prompt_template.format(
+        current_datetime_for_llm=current_datetime_for_llm,
+        user_timezone_str=user_timezone_str,
+        email_text_segment=email_text_segment,
+        email_text_segment_escaped_for_json=escaped_email_text
+    )
+
+    try:
+        response = llm.invoke(prompt)
+        content_string = response.content.strip()
+        
+        # Clean the LLM output if it includes markdown for JSON
+        if content_string.startswith("```json"):
+            content_string = content_string[len("```json"):].strip()
+        if content_string.endswith("```"):
+            content_string = content_string[:-len("```")].strip()
+
+        parsed_json = json.loads(content_string)
+        
+        # Validate with Pydantic model
+        validated_command = ParsedAssistantCommand(**parsed_json)
+        return validated_command.model_dump()
+
+    except json.JSONDecodeError as e_json:
+        logging.error(f"JSONDecodeError in parse_assistant_command: {e_json} - Raw LLM output: '{content_string if 'content_string' in locals() else 'Content string error or not captured'}'", exc_info=True)
+        return ParsedAssistantCommand(original_text=email_text_segment, command="UNKNOWN_COMMAND", error_message=f"LLM output was not valid JSON: {e_json}").model_dump()
+    except Exception as e_gen:
+        logging.error(f"General error in parse_assistant_command: {e_gen}", exc_info=True)
+        raw_resp_content = getattr(response, 'content', "No content in response object.") if 'response' in locals() else "No response object."
+        return ParsedAssistantCommand(original_text=email_text_segment, command="UNKNOWN_COMMAND", error_message=f"LLM call or Pydantic validation failed: {e_gen}. Raw output: {raw_resp_content}").model_dump()

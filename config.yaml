@@ -24,3 +24,9 @@ default_meeting_title_prefix: "Meeting: "
 poll_interval_seconds: 150 # <<<--- ADD THIS LINE OR MODIFY IF IT EXISTS UNDER AGENT BEHAVIOR
 
 agent_email_address: "samirfawaz74@gmail.com"
+
+assistant_mode_settings:
+  authorized_command_senders:
+    - "samirfawaz74@gmail.com"
+    - "mymusicdose961@gmail.com"
+    - "sam12fawaz@gmail.com"
