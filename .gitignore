@@ -34,6 +34,7 @@ main_read_analyze.py
 main_read_meeting_schedule.py
 main_send.py
 main_test_thread_group.py
+main_test_thread.py
 
 #Logfiles
 .
