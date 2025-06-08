@@ -193,8 +193,11 @@ def process_assistant_command_from_email(
                 logging.info(f"ASSISTANT MODE: Preparing to create event: Topic='{topic}', Start='{start_iso}', Attendees='{valid_attendees_list}'")
                 
                 creator_input = {
-                    "summary": topic, "start_datetime_iso": start_iso, "end_datetime_iso": end_iso,
-                    "timezone": user_timezone_str, "attendees": valid_attendees_list,
+                    "summary": f"{topic} ({start_dt_obj.astimezone(user_tz).strftime('%I:%M %p')})",  # Convert to local timezone before formatting
+                    "start_datetime_iso": start_iso, 
+                    "end_datetime_iso": end_iso,
+                    "timezone": user_timezone_str, 
+                    "attendees": valid_attendees_list,
                     "description": f"Meeting scheduled by AI assistant via email command.\n\nCommand context:\n---\n{email_body[:300]}\n---",
                     "location": "Google Meet / Virtual"
                 }

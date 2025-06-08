@@ -1,11 +1,12 @@
+import os
 import json
 from typing import Optional, List, Dict, Any
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.tools import StructuredTool
 from pydantic import BaseModel, Field
-from datetime import datetime 
-import pytz 
-import logging 
+from datetime import datetime
+import pytz
+import logging
 
 # --- Pydantic Models ---
 class MeetingDetails(BaseModel):
@@ -32,12 +33,17 @@ def analyze_email_content(
     cc_recipient_emails: Optional[List[str]] = None,
     conversation_context: Optional[str] = None
 ) -> Dict[str, Any]:
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.1, convert_system_message_to_human=True)
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",
+        temperature=0.1,
+        google_api_key=os.getenv("GOOGLE_API_KEY"), # <-- MODIFIED
+        convert_system_message_to_human=True
+    )
     current_datetime_for_llm_val = ""
     try:
         user_tz = pytz.timezone(user_timezone_str) # Use passed-in timezone
         current_datetime_for_llm_val = datetime.now(user_tz).strftime("%A, %B %d, %Y, %I:%M %p %Z (%z)")
-    except Exception as e_tz: 
+    except Exception as e_tz:
         logging.warning(f"Failed to use provided timezone '{user_timezone_str}' in analyze_email_content: {e_tz}. Falling back.")
         current_datetime_for_llm_val = datetime.now().strftime("%A, %B %d, %Y, %I:%M %p (System Local Time)")
 
@@ -104,7 +110,7 @@ JSON Output:
 """
     prompt = prompt_template.format(
         current_datetime_for_llm=current_datetime_for_llm_val,
-        user_timezone_str_for_prompt=user_timezone_str, 
+        user_timezone_str_for_prompt=user_timezone_str,
         conversation_context_for_prompt=conversation_context_for_prompt_val,
         email_subject=email_subject,
         email_body=email_body,
@@ -132,9 +138,13 @@ JSON Output:
         return {"error": f"An error occurred during Email Analysis LLM call: {str(e)}", "raw_response": raw_resp_c}
 
 def normalize_datetime_with_llm( natural_datetime_str: str, reference_datetime_iso: str, target_timezone_str: str) -> Optional[str]:
-    # ... (This function from response #80 is good and uses target_timezone_str)
     if not natural_datetime_str: logging.debug("  [LLM Date Normalizer] Received empty natural_datetime_str."); return None
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.0, convert_system_message_to_human=True)
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",
+        temperature=0.0,
+        google_api_key=os.getenv("GOOGLE_API_KEY"), # <-- MODIFIED
+        convert_system_message_to_human=True
+    )
     prompt_template = """Your sole task is to convert a natural language date and time string into a "YYYY-MM-DDTHH:MM:SS" format.
 You must use the provided "Current date and time" as the reference for any relative expressions like "tomorrow", "next Monday", or "in 2 days".
 Reference Information:
@@ -170,7 +180,7 @@ email_analyzer_tool = StructuredTool.from_function(
     func=analyze_email_content,
     name="EmailContentAnalyzer",
     description="Analyzes the subject, body, CC list, user's timezone, and conversation context of an email to identify scheduling intent and extract meeting details. Returns a JSON object.",
-    args_schema=AnalyzeEmailInput, # Uses the updated AnalyzeEmailInput
+    args_schema=AnalyzeEmailInput,
 )
 
 class AssistantCommandParams(BaseModel):
@@ -194,7 +204,12 @@ def parse_assistant_command(
     user_timezone_str: str,
     current_datetime_for_llm: Optional[str] = None # Provide current time for context
 ) -> Dict[str, Any]:
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.1, convert_system_message_to_human=True)
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",
+        temperature=0.1,
+        google_api_key=os.getenv("GOOGLE_API_KEY"), # <-- MODIFIED
+        convert_system_message_to_human=True
+    )
 
     if not current_datetime_for_llm:
         try:
@@ -212,17 +227,17 @@ The user's timezone is: {user_timezone_str}.
 
 Supported commands are:
 1. SCHEDULE_MEETING: For creating a new meeting.
-   - Parameters to extract:
-     - "topic": The subject or purpose of the meeting.
-     - "attendees_text": A string describing the attendees (e.g., "John Doe and the team", "Alice from marketing").
-     - "time_description": A string describing when the meeting should happen (e.g., "tomorrow at 3pm", "next Monday morning").
+  - Parameters to extract:
+    - "topic": The subject or purpose of the meeting.
+    - "attendees_text": A string describing the attendees (e.g., "John Doe and the team", "Alice from marketing").
+    - "time_description": A string describing when the meeting should happen (e.g., "tomorrow at 3pm", "next Monday morning").
 2. RESCHEDULE_MEETING: For changing the time of an existing meeting.
-   - Parameters to extract:
-     - "meeting_identifier_text": A string describing the meeting to be rescheduled (e.g., "the sync up with Mark", "our budget meeting tomorrow").
-     - "new_time_description": A string describing the new desired time (e.g., "to 5pm", "to next Friday instead").
+  - Parameters to extract:
+    - "meeting_identifier_text": A string describing the meeting to be rescheduled (e.g., "the sync up with Mark", "our budget meeting tomorrow").
+    - "new_time_description": A string describing the new desired time (e.g., "to 5pm", "to next Friday instead").
 3. DELETE_MEETING: For cancelling an existing meeting.
-   - Parameters to extract:
-     - "meeting_identifier_text": A string describing the meeting to be cancelled.
+  - Parameters to extract:
+    - "meeting_identifier_text": A string describing the meeting to be cancelled.
 
 If the text does not clearly match one of these commands, or if essential information for a command seems missing, set command to "UNKNOWN_COMMAND".
 If a parameter is not explicitly mentioned for a command, you can omit it or set it to null.
@@ -263,7 +278,7 @@ For meeting_identifier_text, capture how the user refers to the meeting.
     try:
         response = llm.invoke(prompt)
         content_string = response.content.strip()
-        
+
         # Clean the LLM output if it includes markdown for JSON
         if content_string.startswith("```json"):
             content_string = content_string[len("```json"):].strip()
@@ -271,7 +286,7 @@ For meeting_identifier_text, capture how the user refers to the meeting.
             content_string = content_string[:-len("```")].strip()
 
         parsed_json = json.loads(content_string)
-        
+
         # Validate with Pydantic model
         validated_command = ParsedAssistantCommand(**parsed_json)
         return validated_command.model_dump()

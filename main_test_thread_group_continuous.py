@@ -11,6 +11,13 @@ import time
 import logging
 import traceback
 
+# --- LOAD ENVIRONMENT VARIABLES FIRST ---
+# This is the crucial change. Load the .env file now.
+load_dotenv()
+
+#Final Check
+print(f"--- DEBUG: Loaded GOOGLE_API_KEY = {os.getenv('GOOGLE_API_KEY')} ---")
+
 # --- Configure Logging ---
 logging.basicConfig(
     level=logging.INFO,
@@ -22,7 +29,7 @@ logging.basicConfig(
     ]
 )
 
-# Import globally defined LangChain tools
+# Now it is safe to import your tools because the environment is ready.
 from tools.email_tools import email_reader_tool, mark_as_read_tool
 from tools.nlp_tools import email_analyzer_tool, normalize_datetime_with_llm
 from tools.calendar_tools import calendar_event_creator_tool, calendar_event_deleter_tool, calendar_event_updater_tool # MODIFIED
@@ -85,14 +92,14 @@ def parse_datetime_from_llm( natural_date_time_str: str, user_timezone_str: str,
             effective_reference_dt_aware = user_tz.localize(reference_datetime_for_normalization)
         else:
             effective_reference_dt_aware = reference_datetime_for_normalization.astimezone(user_tz)
-            
+
     reference_datetime_iso_str = effective_reference_dt_aware.isoformat()
     logging.debug(f"Normalizing '{natural_date_time_str}' with LLM. Reference for LLM: {reference_datetime_iso_str}, Target TZ: {user_timezone_str}")
-    
+
     iso_datetime_str = normalize_datetime_with_llm(
         natural_date_time_str, reference_datetime_iso_str, user_timezone_str # Pass user_timezone_str as target_timezone_str
     )
-    
+
     if not iso_datetime_str:
         logging.warning(f"LLM normalization failed for: '{natural_date_time_str}' using reference {reference_datetime_iso_str}")
         return None
@@ -116,6 +123,13 @@ def process_single_email_for_agent(
     agent_scheduling_states: Dict[str, Any],
     state_file_to_save: str
     ):
+    # Add this at the beginning of the function
+    try:
+        user_tz = pytz.timezone(user_timezone_str)
+    except pytz.exceptions.UnknownTimeZoneError:
+        logging.error(f"Error: Unknown timezone '{user_timezone_str}'. Defaulting to UTC.")
+        user_timezone_str = "UTC"
+        user_tz = pytz.utc
 
     email_id = email_data.get("id")
     thread_id = email_data.get("threadId")
@@ -163,7 +177,7 @@ def process_single_email_for_agent(
             history_summary = " | ".join(history_summary_parts)
             conversation_context_for_llm = f"This is a follow-up. Current status: {status}. Recent dialogue: {history_summary}".strip()
             if not history_summary: conversation_context_for_llm = f"This is a follow-up. Current status: {status}. No detailed history."
-            
+
             # Get original event start time if available, for date parsing reference in reschedules
             if current_thread_state_data.get("scheduled_event_details", {}).get("start_datetime_iso"):
                 try:
@@ -203,23 +217,23 @@ def process_single_email_for_agent(
         intent = analysis_result.get("intent")
         actor_for_history = "external_party"
         if raw_email_sender_address and raw_email_sender_address.lower() == agent_email_address.lower(): actor_for_history = "agent_self_email"
-        
+
         if not current_thread_state_data and intent and intent != "not_meeting_related":
             current_thread_state_data = {
-                "status": "new_request_analyzed", 
+                "status": "new_request_analyzed",
                 "topic": analysis_result.get("topic") or email_subject,
-                "participants": [agent_email_address], 
+                "participants": [agent_email_address],
                 "intent_history": [intent],
                 "negotiation_history": [{"actor": actor_for_history, "message": f"EmailID: {email_id}, Subject: {email_subject}, Snippet: {email_body[:100]}...", "analysis": analysis_result, "timestamp": datetime.now().isoformat()}],
                 "last_updated": datetime.now().isoformat()}
             if raw_email_sender_address and raw_email_sender_address.lower() != agent_email_address.lower():
                 if raw_email_sender_address not in current_thread_state_data["participants"]:
-                     current_thread_state_data["participants"].append(raw_email_sender_address)
+                         current_thread_state_data["participants"].append(raw_email_sender_address)
             agent_scheduling_states[thread_id] = current_thread_state_data
             logging.info(f"    Created new state for thread {thread_id}.")
         elif current_thread_state_data and intent:
             # Ensure last_reply_details is updated before potential early returns
-            current_thread_state_data["last_reply_details"] = analysis_result 
+            current_thread_state_data["last_reply_details"] = analysis_result
             # Don't change status yet, let the scheduling logic do that
             current_thread_state_data.setdefault("intent_history", []).append(intent)
             current_thread_state_data.setdefault("negotiation_history", []).append(
@@ -234,7 +248,7 @@ def process_single_email_for_agent(
 
             # Prepare event details from analysis and current state
             # Topic: Use LLM analysis, fallback to current state, then subject
-            current_topic = analysis_result.get("topic") 
+            current_topic = analysis_result.get("topic")
             if not current_topic and current_thread_state_data:
                 current_topic = current_thread_state_data.get("topic")
             if not current_topic:
@@ -245,10 +259,10 @@ def process_single_email_for_agent(
                     processed_ids_list = agent_scheduling_states.setdefault("processed_message_ids", [])
                     if email_id not in processed_ids_list: processed_ids_list.append(email_id)
                 return
-            
+
             # Duration: Use LLM analysis, fallback to config
             duration_from_analysis = analysis_result.get("duration_minutes")
-            if isinstance(duration_from_analysis, int) and duration_from_analysis > 0: 
+            if isinstance(duration_from_analysis, int) and duration_from_analysis > 0:
                 current_duration_minutes = duration_from_analysis
             elif current_thread_state_data and current_thread_state_data.get("scheduled_event_details", {}).get("start_datetime_iso") and current_thread_state_data.get("scheduled_event_details", {}).get("end_datetime_iso"):
                 # If not in analysis, try to derive from existing event if it's a reschedule
@@ -268,7 +282,7 @@ def process_single_email_for_agent(
             if raw_email_sender_address and raw_email_sender_address.lower() != agent_email_address.lower() and raw_email_sender_address not in base_participants:
                 base_participants.append(raw_email_sender_address)
             final_meeting_attendees.extend(base_participants)
-            
+
             llm_extracted_attendees = analysis_result.get("attendees") # This is from the current email
             if isinstance(llm_extracted_attendees, list): # If LLM provides new list, it might be the definitive one for reschedule
                 # For a reschedule, if LLM provides attendees, it should be the new set.
@@ -280,9 +294,9 @@ def process_single_email_for_agent(
                         final_meeting_attendees.append(att_email)
             elif current_thread_state_data and current_thread_state_data.get("scheduled_event_details", {}).get("attendees"):
                  # If LLM didn't specify attendees for a reschedule, keep the old ones
-                for att_email in current_thread_state_data["scheduled_event_details"]["attendees"]:
-                     if att_email and isinstance(att_email, str) and att_email.lower() not in [p.lower() for p in final_meeting_attendees]:
-                        final_meeting_attendees.append(att_email)
+                 for att_email in current_thread_state_data["scheduled_event_details"]["attendees"]:
+                      if att_email and isinstance(att_email, str) and att_email.lower() not in [p.lower() for p in final_meeting_attendees]:
+                          final_meeting_attendees.append(att_email)
 
             final_meeting_attendees = sorted(list(set(p.lower() for p in final_meeting_attendees if p and is_valid_email(p))))
             logging.info(f"    Final list of attendees for calendar event: {final_meeting_attendees}")
@@ -304,9 +318,9 @@ def process_single_email_for_agent(
 
             # --- RESCHEDULE (UPDATE) vs. CREATE NEW ---
             is_reschedule_or_update = intent in ["reschedule_meeting", "propose_new_time"] and \
-                                    current_thread_state_data and \
-                                    current_thread_state_data.get("status") == "scheduled" and \
-                                    current_thread_state_data.get("scheduled_event_details", {}).get("eventId")
+                                      current_thread_state_data and \
+                                      current_thread_state_data.get("status") == "scheduled" and \
+                                      current_thread_state_data.get("scheduled_event_details", {}).get("eventId")
 
             if is_reschedule_or_update:
                 existing_event_id = current_thread_state_data["scheduled_event_details"]["eventId"]
@@ -319,7 +333,7 @@ def process_single_email_for_agent(
                     new_time_proposal_str = new_proposed_times_str_list[0]
                     # Use original event's start as reference for parsing new time
                     reference_for_date_parsing = original_event_start_for_reference if original_event_start_for_reference else current_time_for_processing
-                    
+
                     new_start_datetime_obj = parse_datetime_from_llm(new_time_proposal_str, user_timezone_str, reference_for_date_parsing)
 
                     if new_start_datetime_obj:
@@ -327,6 +341,9 @@ def process_single_email_for_agent(
                         new_start_iso = new_start_datetime_obj.isoformat()
                         new_end_iso = new_end_datetime_obj.isoformat()
                         logging.info(f"    Parsed new time for update: Start ISO: {new_start_iso}, End ISO: {new_end_iso}")
+
+                        start_local = new_start_datetime_obj.astimezone(user_tz)
+                        end_local = new_end_datetime_obj.astimezone(user_tz)
 
                         update_input = {
                             "event_id": existing_event_id,
@@ -360,14 +377,14 @@ def process_single_email_for_agent(
                         else:
                             history_action = "update_scheduled_meeting_failed"
                             logging.error(f"    Failed to update event {existing_event_id}.")
-                        
+
                         current_thread_state_data.setdefault("negotiation_history", []).append(
                             {"actor": "agent", "action": history_action, "details": history_details, "timestamp": datetime.now().isoformat()})
                     else:
                         logging.warning(f"    Could not parse new proposed time ('{new_time_proposal_str}') for reschedule.")
                         current_thread_state_data.setdefault("negotiation_history", []).append(
                             {"actor": "agent", "action": "datetime_parse_failed_for_update", "details": f"Could not parse: {new_time_proposal_str}", "timestamp": datetime.now().isoformat()})
-            
+
             elif intent == "schedule_new_meeting" or (intent in ["propose_new_time", "reschedule_meeting"] and not is_reschedule_or_update) : # Create new event
                 # This block handles new meeting requests, or propose_new_time/reschedule if no existing event was found to update.
                 logging.info("  Attempting to CREATE a new calendar event.")
@@ -383,18 +400,38 @@ def process_single_email_for_agent(
                         end_datetime_obj = start_datetime_obj + timedelta(minutes=int(current_duration_minutes))
                         start_iso = start_datetime_obj.isoformat(); end_iso = end_datetime_obj.isoformat()
                         logging.info(f"    Parsed Start for new event: {start_iso}, End: {end_iso}")
-                        
+
+                        logging.info(f"DEBUG: start_datetime_obj: {start_datetime_obj} (tzinfo: {start_datetime_obj.tzinfo}), user_tz: {user_tz}")
+                        logging.info(f"DEBUG: start_datetime_obj in user_tz: {start_datetime_obj.astimezone(user_tz)}")
+
+                        start_local = start_datetime_obj.astimezone(user_tz)
+                        end_local = end_datetime_obj.astimezone(user_tz)
+
+                        summary = f"{current_topic} ({start_local.strftime('%I:%M %p')})"
+                        description = (
+                            f"Meeting regarding: {current_topic}\n"
+                            f"Time: {start_local.strftime('%A, %d %B %Y, %I:%M %p')} - "
+                            f"{end_local.strftime('%I:%M %p')} ({end_local.strftime('%Z')})\n"
+                            "Note: All times are shown in Asia/Beirut local time (EEST, UTC+3).\n"
+                            "Facilitated by scheduling agent."
+                        )
+
                         calendar_tool_input = {
-                            "summary": current_topic, "start_datetime_iso": start_iso, "end_datetime_iso": end_iso,
-                            "attendees": final_meeting_attendees, "description": current_description,
-                            "location": current_location, "timezone": user_timezone_str}
+                            "summary": summary,
+                            "start_datetime_iso": start_iso,
+                            "end_datetime_iso": end_iso,
+                            "attendees": final_meeting_attendees,
+                            "description": description,
+                            "location": current_location,
+                            "timezone": user_timezone_str
+                        }
                         creation_result_dict = calendar_event_creator_tool.invoke(calendar_tool_input)
                         logging.info(f"    New Calendar Event Creation Result: {creation_result_dict.get('message', 'No message')}")
-                        
+
                         if current_thread_state_data and creation_result_dict.get("status") == "success":
                             current_thread_state_data["status"] = "scheduled"
                             current_thread_state_data.setdefault("negotiation_history", []).append(
-                                {"actor": "agent", "action": "scheduled_new_meeting", "details": creation_result_dict.get('message'), 
+                                {"actor": "agent", "action": "scheduled_new_meeting", "details": creation_result_dict.get('message'),
                                  "scheduled_time_iso": start_iso, "eventId": creation_result_dict.get('eventId'), "timestamp": datetime.now().isoformat()})
                             # Store all details used for creation for future reference/updates
                             current_thread_state_data["scheduled_event_details"] = {
@@ -404,7 +441,7 @@ def process_single_email_for_agent(
                                 "end_datetime_iso": end_iso,
                                 "timezone": user_timezone_str,
                                 "attendees": final_meeting_attendees, # Store the actual list used
-                                "description": current_description,
+                                "description": description,
                                 "location": current_location,
                                 "htmlLink": creation_result_dict.get('htmlLink')
                             }
@@ -413,15 +450,15 @@ def process_single_email_for_agent(
                             logging.error(f"      Failed to create new calendar event: {creation_result_dict.get('message')}")
                             current_thread_state_data.setdefault("negotiation_history", []).append(
                                 {"actor": "agent", "action": "schedule_new_meeting_failed", "details": creation_result_dict.get('message'), "timestamp": datetime.now().isoformat()})
-                    else: 
+                    else:
                         logging.warning(f"    Could not parse proposed date/time ('{first_proposal_str}') for new event.")
                         current_thread_state_data.setdefault("negotiation_history", []).append(
                                 {"actor": "agent", "action": "datetime_parse_failed_for_create", "details": f"Could not parse: {first_proposal_str}", "timestamp": datetime.now().isoformat()})
-            
+
             elif intent == "confirm_attendance":
                 logging.info("  Intent is 'confirm_attendance'. No calendar action taken by agent, assuming user/organizer handles this.")
                 if current_thread_state_data: current_thread_state_data["status"] = "attendance_confirmed_by_other_party"
-            
+
             # Other intents like "cancel_meeting", "decline_attendance" might need specific calendar actions (e.g., using deleter_tool)
             # For now, they just update history and state.
 
@@ -457,7 +494,6 @@ def process_single_email_for_agent(
 
 
 def main_loop_for_single_user_continuous():
-    load_dotenv()
     config = load_config()
 
     agent_email_address = config.get("agent_email_address", None)
@@ -474,7 +510,7 @@ def main_loop_for_single_user_continuous():
         user_timezone_str = "UTC"; user_tz = pytz.utc
 
     specific_state_file = get_user_specific_state_file_path(agent_email_address)
-    POLL_INTERVAL_SECONDS = config.get("poll_interval_seconds", 150) 
+    POLL_INTERVAL_SECONDS = config.get("poll_interval_seconds", 150)
     logging.info(f"Polling interval set to {POLL_INTERVAL_SECONDS} seconds.")
 
     while True:
@@ -500,7 +536,7 @@ def main_loop_for_single_user_continuous():
                         logging.info(f"  Email ID {email_id} is new to the agent. Queued for processing.")
                     elif email_id:
                         logging.debug(f"  Skipping email ID {email_id} as it's already in agent's processed list.")
-                
+
                 if not emails_to_process_this_cycle:
                     logging.info(f"No new (unprocessed by agent) emails found for {agent_email_address} this cycle.")
                 else:
@@ -514,13 +550,13 @@ def main_loop_for_single_user_continuous():
                                 user_timezone_str,
                                 current_time_for_processing,
                                 config,
-                                user_scheduling_states, 
+                                user_scheduling_states,
                                 specific_state_file
                             )
                         except Exception as e_process_email_loop:
                             logging.error(f"Error during process_single_email_for_agent for email ID {email_data_item.get('id')}: {e_process_email_loop}", exc_info=True)
                         logging.info(f"--- Finished one email processing iteration for {agent_email_address} ---")
-                save_scheduling_states(specific_state_file, user_scheduling_states)
+                    save_scheduling_states(specific_state_file, user_scheduling_states)
 
         except Exception as e_user_cycle:
             logging.error(f"An unexpected error occurred in the processing cycle for {agent_email_address}: {e_user_cycle}", exc_info=True)
