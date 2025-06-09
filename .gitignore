@@ -14,6 +14,7 @@ token.json
 
 # Application State / Data (Potentially sensitive, good to ignore)
 scheduling_states_*.json
+state_backups/
 *.log
 
 # OS-generated files

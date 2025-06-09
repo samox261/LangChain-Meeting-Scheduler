@@ -1,19 +1,19 @@
 # --- Core LangChain and LLM (Gemini) ---
 langchain
 langchain-google-genai
-python-dotenv
+python-dotenv==1.0.1
 
 # --- Configuration ---
-PyYAML
+PyYAML==6.0.1
 
 # --- Google Services (Gmail API & potentially Google Calendar API later) ---
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
+google-api-python-client==2.118.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
 
 # --- Date, Time, and Email Parsing Utilities ---
-pytz                        # For timezone handling (already added)
-python-dateutil             # For robust date parsing from strings
+pytz==2024.1
+python-dateutil==2.8.2
 beautifulsoup4              # For parsing HTML content from emails
 recurrent                   # For parsing recurring date expressions (e.g., "every Tuesday")
 dateparser
@@ -23,3 +23,15 @@ dateparser
                             # If you uncomment this, you'll also need to download a model, e.g.:
                             # python -m spacy download en_core_web_sm
                             # For now, we can rely on the LLM for most NLP.
+
+# --- Additional dependencies ---
+flask==3.0.2
+requests==2.31.0
+google-auth==2.28.1
+prometheus-client==0.20.0
+python-json-logger==2.0.7
+
+# --- Development dependencies ---
+pytest==8.0.2
+black==24.2.0
+flake8==7.0.0

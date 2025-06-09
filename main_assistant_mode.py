@@ -113,6 +113,14 @@ def process_assistant_command_from_email(
     config_settings: Dict[str, Any], 
     assistant_states: Dict[str, Any]
 ):
+    # Create timezone object at the start of the function
+    try:
+        user_tz = pytz.timezone(user_timezone_str)
+    except pytz.exceptions.UnknownTimeZoneError:
+        logging.error(f"Unknown timezone '{user_timezone_str}' in process_assistant_command_from_email. Using UTC as fallback.")
+        user_tz = pytz.utc
+        user_timezone_str = "UTC"
+
     email_id = email_data.get("id")
     thread_id = email_data.get("threadId")
     email_body = email_data.get("body_text", "")
@@ -185,9 +193,18 @@ def process_assistant_command_from_email(
 
                 final_attendees = {agent_email_address.lower(), email_sender.lower()}
                 if attendees_text:
-                    potential_emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', attendees_text)
-                    for email in potential_emails:
-                        if is_valid_email(email): final_attendees.add(email.lower())
+                    if "cc" in attendees_text.lower() or "cc'd" in attendees_text.lower():
+                        # Add all CC recipients
+                        cc_recipients = email_data.get("cc_recipients", [])
+                        for recipient in cc_recipients:
+                            if recipient.get("email") and is_valid_email(recipient["email"]):
+                                final_attendees.add(recipient["email"].lower())
+                    else:
+                        # Handle other attendee specifications
+                        potential_emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', attendees_text)
+                        for email in potential_emails:
+                            if is_valid_email(email): 
+                                final_attendees.add(email.lower())
                 
                 valid_attendees_list = sorted(list(final_attendees))
                 logging.info(f"ASSISTANT MODE: Preparing to create event: Topic='{topic}', Start='{start_iso}', Attendees='{valid_attendees_list}'")
